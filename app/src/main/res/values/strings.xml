@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">دیده‌بان پازل نت</string>
+    <string name="vpn_title">دیده‌بان فعال است</string>
+    <string name="vpn_text">در حال پایش ترافیک شبکه…</string>
+    <string name="vpn_channel_name">وضعیت دیده‌بان</string>
+    <string name="vpn_channel_desc">نمایش وضعیت سرویس پایش شبکه</string>
+    <string name="action_settings">تنظیمات</string>
+    <string name="action_open">باز کردن برنامه</string>
+    <string name="action_stop">توقف</string>
+    <string name="status_connected">فعال</string>
+    <string name="status_disconnected">غیرفعال</string>
+    <string name="btn_start">شروع پایش</string>
+    <string name="btn_stop">توقف پایش</string>
+    <string name="tab_dashboard">داشبورد</string>
+    <string name="tab_apps">برنامه‌ها</string>
+    <string name="tab_log">لاگ</string>
+    <string name="tab_settings">تنظیمات</string>
+    <string name="label_total_sent">ارسال</string>
+    <string name="label_total_received">دریافت</string>
+    <string name="label_flows">اتصالات</string>
+    <string name="label_blocked">مسدود</string>
+    <string name="label_dns">DNS</string>
+</resources>
