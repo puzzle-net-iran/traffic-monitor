@@ -21,6 +21,7 @@ import java.io.FileOutputStream
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.net.Socket
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -177,10 +178,8 @@ class TrafficVpnService : VpnService() {
             return
         }
         if (syn && !ack) {
-            // New outbound TCP connection — accept silently (allow all TCP)
             val flow = TcpFlow(pkt.srcIp, pkt.dstIp, pkt.srcPort, pkt.dstPort, pkt.ack, pkt.seq + 1)
             tcpFlows[key] = flow
-            // SYN-ACK
             writeTcp(pkt.dstIp, pkt.srcIp, pkt.dstPort, pkt.srcPort, flow.seqRx, flow.ackRx, 0x12)
             flow.seqRx++
             LogBuffer.append("NEW TCP ${pkt.ipStr(pkt.dstIp)}:${pkt.dstPort} -> ${pkt.ipStr(pkt.srcIp)}:${pkt.srcPort}")
@@ -188,7 +187,6 @@ class TrafficVpnService : VpnService() {
         }
         val flow = tcpFlows[key] ?: return
         if (pkt.payloadLen > 0) {
-            // Data from app → we accept it and ACK
             flow.ackRx = (pkt.seq + pkt.payloadLen) and 0xFFFFFFFFL
             flow.ackRx = (flow.ackRx + 1) and 0xFFFFFFFFL
             writeTcp(pkt.dstIp, pkt.srcIp, pkt.dstPort, pkt.srcPort, flow.seqRx, flow.ackRx, 0x10)
@@ -202,19 +200,16 @@ class TrafficVpnService : VpnService() {
     private fun handleUdp(pkt: Pkt) {
         if (pkt.payloadLen == 0) return
         LogBuffer.append("UDP ${pkt.ipStr(pkt.dstIp)}:${pkt.dstPort} ${pkt.payloadLen}B")
-        // For DNS: capture query and respond with dummy A record
         if (pkt.dstPort == 53) {
             val domain = extractDnsName(pkt.buf, pkt.payloadOff, pkt.payloadLen)
             if (domain.isNotEmpty()) {
                 dnsCache[pkt.ipStr(pkt.srcIp)] = domain
                 LogBuffer.append("DNS $domain")
             }
-            // Build minimal DNS response (NXDOMAIN)
             val resp = ByteArray(pkt.payloadLen)
             System.arraycopy(pkt.buf, pkt.payloadOff, resp, 0, pkt.payloadLen.coerceAtMost(resp.size))
             if (resp.size >= 4) {
-                resp[2] = (resp[2].toInt() or 0x80).toByte() // QR=1
-                resp[3] = 0.toByte() // RCODE=0
+                resp[2] = (resp[2].toInt() or 0x80).toByte()
             }
             writeUdp(pkt.dstIp, pkt.srcIp, pkt.dstPort, pkt.srcPort, resp)
         }
@@ -299,15 +294,21 @@ class TrafficVpnService : VpnService() {
     override fun onDestroy() { runCatching { unregisterReceiver(toggleReceiver) }; stopVpn(); super.onDestroy() }
     override fun onRevoke() { stopVpn(); super.onRevoke() }
 
-    private class TcpFlow(srcIp: ByteArray, dstIp: ByteArray, sp: Int, dp: Int, initSeq: Long, initAck: Long) {
-        val srcIp = srcIp.clone(); val dstIp = dstIp.clone(); val sp = sp; val dp = dp
-        var seqRx: Long = initAck; var ackRx: Long = initSeq + 1
+    private class TcpFlow(
+        srcIp: ByteArray, dstIp: ByteArray, sp: Int, dp: Int, initSeq: Long, initAck: Long
+    ) {
+        val srcIp = srcIp.clone()
+        val dstIp = dstIp.clone()
+        val sp = sp
+        val dp = dp
+        var seqRx: Long = initAck
+        var ackRx: Long = initSeq + 1
         val acked = AtomicBoolean(false)
         val socket: Socket? = null
         fun close() { runCatching { socket?.close() } }
     }
 
-    private class UdpFlow(val srcIp: ByteArray, val dstIp: ByteArray, val sp: Int, val dp: Int, val sock: DatagramSocket)
+    private class UdpFlow(val sock: DatagramSocket)
 
     companion object {
         const val ACTION_TOGGLE = "ir.trafficmonitor.TOGGLE_VPN"
